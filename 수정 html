@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Submit Form</title>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelector("#submission").addEventListener("click", function(event) {
+                event.preventDefault(); // 폼 제출 방지
+
+                fetch("http://localhost:8000/submit-post", {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json;charset=utf-8',
+                    },
+                    body: JSON.stringify({
+                        username: document.querySelector("#username").value,
+                        password: document.querySelector("#password").value,
+                        code: document.querySelector("#code").value.trim(),
+                    }),
+                })
+                .then((response) => response.json())
+                .then((data) => {
+                    alert(`서버로부터의 응답: ${JSON.stringify(data)}`);
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <form>
+        <div>
+            <label>Username:
+                <input type="text" id="username" value="erica">
+            </label>
+        </div>
+        <div>
+            <label>Password:
+                <input type="password" id="password" value="erica">
+            </label>
+        </div>
+        <div>
+            <label>Code:
+                <textarea id="code">print('hello world!')</textarea>
+            </label>
+        </div>
+        <button type="submit" id="submission">Submit</button>
+    </form>
+</body>
+</html>
