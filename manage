@@ -1,18 +1,24 @@
 from fastapi import FastAPI
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 origin을 허용하거나 필요에 따라 특정 origin을 명시합니다.
+    allow_origins=["*"],  # 필요에 따라 특정 origin을 명시합니다.
     allow_credentials=True,
-    allow_methods=["POST"],  # POST 메서드만 허용합니다.
-    allow_headers=["*"],  # 모든 헤더를 허용합니다.
+    allow_methods=["POST"],
+    allow_headers=["*"],
 )
 
+class Submission(BaseModel):
+    username: str
+    password: str
+    code: str
+
 @app.post("/submit-post")
-async def submit_post(username: str, password: str, code: str):
-    # 데이터 처리 로직
+async def submit_post(submission: Submission):
+    print(f"Received POST request with Username: {submission.username}, Password: {submission.password}, Code: {submission.code}")
+    # 데이터 처리 로직 추가
     return {"message": "Data received successfully"}
