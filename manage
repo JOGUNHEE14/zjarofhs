@@ -16,7 +16,7 @@ class Submission(BaseModel):
     username: str
     password: str
     code: str
-
+#c1->m1
 @app.post("/submit-post")
 async def submit_post(submission: Submission):
     print(f"Received POST request with Username: {submission.username}, Password: {submission.password}, Code: {submission.code}")
