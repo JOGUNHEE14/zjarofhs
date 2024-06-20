@@ -7,6 +7,7 @@ import tempfile
 import os
 from typing import Optional
 from datetime import datetime
+import httpx
 
 app = FastAPI()
 
@@ -121,6 +122,14 @@ def generate_code_file(user_id: int) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating code file: {e}")
 
+# 다른 서버로 코드를 보내고 응답을 받는 함수
+async def send_code_to_server(code: str):
+    url = "http://another-server/execute-code"  # 실제 코드 실행 서버 URL로 변경 필요
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json={"code": code})
+        response.raise_for_status()
+        return response.json()
+
 # POST 요청 핸들러
 @app.post("/submit-post")
 async def submit_post(submission: Submission, background_tasks: BackgroundTasks):
@@ -128,8 +137,13 @@ async def submit_post(submission: Submission, background_tasks: BackgroundTasks)
         user_id = save_user_info(submission.username, submission.password, submission.status)
         save_code_info(user_id, submission.code)
         reservation_number = generate_reservation_number(user_id)
-        background_tasks.add_task(send_reservation_number, submission.username, reservation_number)
-        return {"message": "Data received successfully", "reservation_number": reservation_number}
+
+        # 다른 서버로 코드 전송 및 실행 결과 받기
+        execution_result = await send_code_to_server(submission.code)
+        execution_status = execution_result.get("status", "failure")
+
+        background_tasks.add_task(send_reservation_number, submission.username, reservation_number, execution_status)
+        return {"message": "Data received successfully", "reservation_number": reservation_number, "execution_status": execution_status}
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -187,5 +201,6 @@ async def generate_code():
         raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
 
 # 예약번호를 사용자에게 전달하는 함수
-def send_reservation_number(username: str, reservation_number: str):
-    print(f"Sending reservation number {reservation_number} to user {username}")
+def send_reservation_number(username: str, reservation_number: str, execution_status: str):
+    print(f"Sending reservation number {reservation_number} with status {execution_status} to user {username}")
+
