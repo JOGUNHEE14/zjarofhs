@@ -22,10 +22,15 @@
                 })
                 .then((response) => response.json())
                 .then((data) => {
-                    alert(`서버로부터의 응답: ${JSON.stringify(data)}`);
+                    if (data.success) {
+                        alert(`성공: ${JSON.stringify(data)}`);
+                    } else {
+                        alert(`실패: ${JSON.stringify(data)}`);
+                    }
                 })
                 .catch((error) => {
                     console.error('Error:', error);
+                    alert('서버 요청 중 오류가 발생했습니다.');
                 });
             });
         });
