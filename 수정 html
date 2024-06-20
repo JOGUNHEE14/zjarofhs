@@ -8,6 +8,7 @@
             document.querySelector("#submission").addEventListener("click", function(event) {
                 event.preventDefault(); // 폼 제출 방지
 
+                // 수정된 부분: trim() 함수는 코드 앞뒤 공백을 제거합니다.
                 fetch("http://localhost:8000/submit-post", {
                     method: "POST",
                     headers: {
@@ -16,7 +17,7 @@
                     body: JSON.stringify({
                         username: document.querySelector("#username").value,
                         password: document.querySelector("#password").value,
-                        code: document.querySelector("#code").value.trim(),
+                        code: document.querySelector("#code").value.trim(), // trim() 추가
                     }),
                 })
                 .then((response) => response.json())
@@ -47,7 +48,7 @@
                 <textarea id="code">print('hello world!')</textarea>
             </label>
         </div>
-        <button type="submit" id="submission">Submit</button>
+        <button type="button" id="submission">Submit</button> <!-- 수정된 부분: type을 submit에서 button으로 변경 -->
     </form>
 </body>
 </html>
