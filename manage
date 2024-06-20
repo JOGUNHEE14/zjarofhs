@@ -1,9 +1,12 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Response, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import mysql.connector
 from mysql.connector import errorcode
+import tempfile
+import os
 from typing import Optional
+from datetime import datetime
 
 app = FastAPI()
 
@@ -12,7 +15,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["POST"],
+    allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
 
@@ -43,7 +46,7 @@ class Submission(BaseModel):
     username: str
     password: str
     code: str
-    status: Optional[str] = "submitted"  # 기본값을 "submitted"로 설정
+    status: Optional[str] = "SUBMITTED" 
 
 # 데이터베이스에 사용자 정보 저장 함수
 def save_user_info(username: str, password: str, status: Optional[str]):
@@ -87,6 +90,37 @@ def save_code_info(user_id: int, code: str):
 def generate_reservation_number(user_id: int):
     return f"RES-{user_id}"
 
+# 코드 파일 생성 함수 (임시 파일로 생성 후 파일 경로 반환)
+def generate_code_file(user_id: int) -> str:
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # 코드 조회
+        select_code_query = ("SELECT codes.code FROM users "
+                             "JOIN codes ON users.id = codes.user_id "
+                             "WHERE users.status = 'submitted' "
+                             "ORDER BY users.created_at ASC LIMIT 1")
+        cursor.execute(select_code_query)
+        result = cursor.fetchone()
+
+        if not result:
+            raise HTTPException(status_code=404, detail="No 'submitted' status data found")
+
+        code = result[0]
+
+        # 임시 파일 생성
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".py")
+        temp_file.write(code.encode('utf-8'))  # UTF-8로 인코딩하여 파일에 쓰기
+        temp_file.close()
+
+        cursor.close()
+        connection.close()
+
+        return temp_file.name  # 파일 경로 반환
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating code file: {e}")
+
 # POST 요청 핸들러
 @app.post("/submit-post")
 async def submit_post(submission: Submission, background_tasks: BackgroundTasks):
@@ -96,6 +130,57 @@ async def submit_post(submission: Submission, background_tasks: BackgroundTasks)
         reservation_number = generate_reservation_number(user_id)
         background_tasks.add_task(send_reservation_number, submission.username, reservation_number)
         return {"message": "Data received successfully", "reservation_number": reservation_number}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+
+# GET 요청 핸들러
+@app.get("/generate-code", response_class=Response)
+async def generate_code():
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # 최신 'SUBMITTED' 상태의 사용자 가져오기
+        select_query = ("SELECT users.id, users.username, codes.code FROM users "
+                        "JOIN codes ON users.id = codes.user_id "
+                        "WHERE users.status = 'submitted' "
+                        "ORDER BY users.created_at ASC LIMIT 1")
+        cursor.execute(select_query)
+        result = cursor.fetchone()
+
+        if not result:
+            raise HTTPException(status_code=404, detail="No 'submitted' status data found")
+
+        user_id, username, code = result
+
+        # 코드 파일 생성
+        file_path = generate_code_file(user_id)
+
+        # 사용자 상태 업데이트
+        update_status_query = ("UPDATE users "
+                               "SET status = 'PROCESSING', updated_at = %s "
+                               "WHERE id = %s")
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        update_data = (current_time, user_id)
+        cursor.execute(update_status_query, update_data)
+        connection.commit()
+
+        cursor.close()
+        connection.close()
+
+        # 파일 읽기
+        with open(file_path, 'r', encoding='utf-8') as file:
+            code_content = file.read()
+
+        # 파일 삭제 (선택 사항)
+        os.remove(file_path)
+
+        return Response(content=code_content, media_type="text/plain")
+
+    except mysql.connector.Error as err:
+        raise HTTPException(status_code=500, detail=f"Database error: {err}")
     except HTTPException as e:
         raise e
     except Exception as e:
